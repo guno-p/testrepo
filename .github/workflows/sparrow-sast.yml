@@ -22,7 +22,7 @@ jobs:
           # analysis.json (분석 대상 = 머지된 레포 전체 루트)
           $analysis = @{
             type    = "full"
-            profile = "${{ secrets.SPARROW_PROFILE }}"
+            profile = "소프트웨어 보안약점 진단가이드 검출 규칙"
             targets = @(
               @{
                 type       = "file"
