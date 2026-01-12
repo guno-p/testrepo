@@ -12,16 +12,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Sparrow SAST
-        shell: powershell
+        shell: pwsh
         run: |
-          $ws = ([string]$env:GITHUB_WORKSPACE).Trim()
+          $ws = $env:GITHUB_WORKSPACE.Trim()
 
           # password.txt
           Set-Content -Path "$ws\password.txt" -Value "${{ secrets.SPARROW_PASSWORD }}" -NoNewline
 
-          # Base64로부터 한글 프로파일 복원
-          $profile = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("${{ secrets.SPARROW_PROFILE_B64 }}"))
+          # profile (한글 깨짐 방지: pwsh + Trim)
+          $profile = "${{ secrets.SPARROW_PROFILE }}"
 
+          # analysis.json 생성
           $analysis = @{
             type    = "full"
             profile = $profile
@@ -36,9 +37,11 @@ jobs:
           }
 
           $json = $analysis | ConvertTo-Json -Depth 20
+
           # UTF-8 (BOM 없음)으로 저장
           [System.IO.File]::WriteAllText("$ws\analysis.json", $json, (New-Object System.Text.UTF8Encoding($false)))
 
+          # CLI 실행
           $cli = "C:\workspace\sparrow-enterprise-client-windows-2512.2\sparrow-cli.cmd"
           & $cli create analysis `
             -k "${{ secrets.SPARROW_PROJECT_KEY }}" `
