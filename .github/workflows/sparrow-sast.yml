@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Sparrow SAST
-        shell: pwsh
+        shell: powershell
         run: |
           $ws = ([string]$env:GITHUB_WORKSPACE).Trim()
 
