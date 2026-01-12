@@ -16,13 +16,15 @@ jobs:
         run: |
           $ws = ([string]$env:GITHUB_WORKSPACE).Trim()
 
-          # password.txt (레포에 저장 금지)
+          # password.txt
           Set-Content -Path "$ws\password.txt" -Value "${{ secrets.SPARROW_PASSWORD }}" -NoNewline
 
-          # analysis.json (분석 대상 = 머지된 레포 전체 루트)
+          # Base64로부터 한글 프로파일 복원
+          $profile = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("${{ secrets.SPARROW_PROFILE_B64 }}"))
+
           $analysis = @{
             type    = "full"
-            profile = "소프트웨어 보안약점 진단가이드 검출 규칙"
+            profile = $profile
             targets = @(
               @{
                 type       = "file"
@@ -32,9 +34,11 @@ jobs:
               }
             )
           }
-          $analysis | ConvertTo-Json -Depth 20 | Set-Content -Path "$ws\analysis.json" -Encoding UTF8
 
-          # CLI 실행
+          $json = $analysis | ConvertTo-Json -Depth 20
+          # UTF-8 (BOM 없음)으로 저장
+          [System.IO.File]::WriteAllText("$ws\analysis.json", $json, (New-Object System.Text.UTF8Encoding($false)))
+
           $cli = "C:\workspace\sparrow-enterprise-client-windows-2512.2\sparrow-cli.cmd"
           & $cli create analysis `
             -k "${{ secrets.SPARROW_PROJECT_KEY }}" `
