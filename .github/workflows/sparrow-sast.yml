@@ -1,0 +1,78 @@
+name: Sparrow SAST
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  sast:
+    runs-on: [self-hosted, Windows, X64]
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Show workspace (debug)
+        shell: powershell
+        run: |
+          Write-Host "GITHUB_WORKSPACE = $env:GITHUB_WORKSPACE"
+          Write-Host "Runner name     = $env:RUNNER_NAME"
+          Write-Host "Computer name   = $env:COMPUTERNAME"
+          Get-ChildItem -Force $env:GITHUB_WORKSPACE | Select-Object Name
+
+      - name: Prepare analysis.json + password.txt
+        shell: powershell
+        run: |
+          $ws = $env:GITHUB_WORKSPACE
+
+          # 1) password.txt 생성
+          Set-Content -Path "$ws\password.txt" -Value "${{ secrets.SPARROW_PASSWORD }}" -NoNewline
+
+          # 2) 분석 대상 경로 자동 선택
+          $candidates = @(
+            Join-Path $ws "src\all",
+            Join-Path $ws "src",
+            $ws
+          )
+          $targetPath = $null
+          foreach ($p in $candidates) {
+            if (Test-Path $p) { $targetPath = $p; break }
+          }
+          if (-not $targetPath) { throw "No valid targetPath found under workspace." }
+          Write-Host "Target path = $targetPath"
+
+          # 3) analysis.json 생성
+          $analysis = @{
+            type    = "full"
+            profile = "${{ secrets.SPARROW_PROFILE }}"
+            targets = @(
+              @{
+                type       = "file"
+                path       = @($targetPath)
+                extensions = @("*")
+                basePath   = $ws
+              }
+            )
+          }
+
+          $json = $analysis | ConvertTo-Json -Depth 20
+          Set-Content -Path "$ws\analysis.json" -Value $json -Encoding UTF8
+          Write-Host "Created $ws\analysis.json"
+
+      - name: Run Sparrow SAST analysis
+        shell: powershell
+        run: |
+          $ws = $env:GITHUB_WORKSPACE
+
+          # CLI 위치
+          $cli = "C:\workspace\sparrow-enterprise-client-windows-2512.2\sparrow-cli.cmd"
+          if (-not (Test-Path $cli)) {
+            throw "sparrow-cli.cmd not found: $cli (경로 확인 필요)"
+          }
+
+          & $cli create analysis `
+            -k "${{ secrets.SPARROW_PROJECT_KEY }}" `
+            -f "$ws\analysis.json" `
+            -s "${{ secrets.SPARROW_SERVER_URL }}" `
+            -u "${{ secrets.SPARROW_USER }}" `
+            -p "$ws\password.txt"
